@@ -2,6 +2,7 @@
   "type": "module",
   "dependencies": {
     "openai": "*",
+    "cohere-ai": "*",
     "axios": "*",
     "cheerio": "*",
     "discord.js": "*",
