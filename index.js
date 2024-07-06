@@ -23,6 +23,7 @@ import {
   Routes,
 } from 'discord.js';
 import OpenAI from "openai";
+import { CohereClient } from 'cohere-ai';
 import { writeFile, unlink } from 'fs/promises';
 import fs from 'fs';
 import path from 'path';
@@ -48,7 +49,6 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
-const openai = new OpenAI();
 const token = process.env.DISCORD_BOT_TOKEN;
 const activeRequests = new Set();
 
@@ -58,6 +58,7 @@ let activeUsersInChannels = {};
 let customInstructions = {};
 let serverSettings = {};
 let userPreferredImageModel = {};
+let userPreferredTextModel = {};
 let userPreferredImageResolution = {};
 let userPreferredImagePromptEnhancement = {};
 let userPreferredSpeechModel = {};
@@ -69,7 +70,7 @@ let blacklistedUsers = {};
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const CONFIG_DIR = path.join(__dirname, 'config');
+const CONFIG_DIR = path.join(__dirname, 'data');
 const CHAT_HISTORIES_DIR = path.join(CONFIG_DIR, 'chat_histories_2');
 
 const FILE_PATHS = {
@@ -77,6 +78,7 @@ const FILE_PATHS = {
   customInstructions: path.join(CONFIG_DIR, 'custom_instructions.json'),
   serverSettings: path.join(CONFIG_DIR, 'server_settings.json'),
   userPreferredImageModel: path.join(CONFIG_DIR, 'user_preferred_image_model.json'),
+  userPreferredTextModel: path.join(CONFIG_DIR, 'user_preferred_text_model.json'),
   userPreferredImageResolution: path.join(CONFIG_DIR, 'user_preferred_image_resolution.json'),
   userPreferredImagePromptEnhancement: path.join(CONFIG_DIR, 'user_preferred_image_prompt_enhancement.json'),
   userPreferredSpeechModel: path.join(CONFIG_DIR, 'user_preferred_speech_model.json'),
@@ -173,6 +175,7 @@ loadStateFromFile();
 
 const defaultResponseFormat = config.defaultResponseFormat;
 const defaultImgModel = config.defaultImgModel;
+const defaultTextModel = config.defaultTextModel;
 const defaultUrlReading = config.defaultUrlReading;
 const activities = config.activities.map(activity => ({
   name: activity.name,
@@ -442,6 +445,9 @@ client.on('interactionCreate', async (interaction) => {
         case 'change-image-model':
           await changeImageModel(interaction);
           break;
+        case 'change-text-model':
+          await changeTextModel(interaction);
+          break;
         case 'toggle-prompt-enhancer':
           await togglePromptEnhancer(interaction);
           break;
@@ -501,6 +507,9 @@ client.on('interactionCreate', async (interaction) => {
     } else if (interaction.customId === 'select-image-resolution') {
       const selectedResolution = interaction.values[0];
       await handleImageSelectResolution(interaction, selectedResolution);
+    } else if (interaction.customId === 'select-text-model') {
+      const selectedModel = interaction.values[0];
+      await handleTextSelectModel(interaction, selectedModel);
     }
   } catch (error) {
     console.error('Error handling select menu interaction:', error.message);
@@ -1306,6 +1315,53 @@ async function changeImageModel(interaction) {
   }
 }
 
+async function changeTextModel(interaction) {
+  try {
+    // Define model names in an array
+    const models = [
+      'Cohere Command R Plus (Web)', 'Groq Llama 3 70B', 'Groq Llama 3 8B', 'Groq Gemma 2 9B',
+      'Together Qwen 2 72B', 'Together Llama 3 70B', 'Together DBRX'
+    ];
+
+    const selectedModel = userPreferredTextModel[interaction.user.id] || defaultTextModel;
+
+    // Create a select menu
+    let selectMenu = new StringSelectMenuBuilder()
+      .setCustomId('select-text-model')
+      .setPlaceholder('Select Text Generation Model')
+      .setMinValues(1)
+      .setMaxValues(1);
+
+    // Add options to select menu
+    models.forEach((model) => {
+      selectMenu.addOptions([
+        {
+          label: model,
+          value: model,
+          description: `Select to use ${model} model.`,
+          default: model === selectedModel,
+        },
+      ]);
+    });
+
+    // Create an action row and add the select menu to it
+    const actionRow = new ActionRowBuilder().addComponents(selectMenu);
+
+    const embed = new EmbedBuilder()
+      .setColor(0xFFFFFF)
+      .setTitle('Select Text Generation Model')
+      .setDescription('Select the model you want to use for text generation.');
+
+    await interaction.reply({
+      embeds: [embed],
+      components: [actionRow],
+      ephemeral: true
+    });
+  } catch (error) {
+    console.log(error.message);
+  }
+}
+
 async function changeImageResolution(interaction) {
   try {
     const userId = interaction.user.id;
@@ -1411,6 +1467,21 @@ async function handleImageSelectModel(interaction, model) {
       .setColor(0x00FF00)
       .setTitle('Model Selected')
       .setDescription(`Image Generation Model Selected: \`${model}\``);
+    
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  } catch (error) {
+    console.log(error.message);
+  }
+}
+
+async function handleTextSelectModel(interaction, model) {
+  try {
+    const userId = interaction.user.id;
+    userPreferredTextModel[userId] = model;
+    const embed = new EmbedBuilder()
+      .setColor(0x00FF00)
+      .setTitle('Model Selected')
+      .setDescription(`Text Generation Model Selected: \`${model}\``);
     
     await interaction.reply({ embeds: [embed], ephemeral: true });
   } catch (error) {
@@ -2345,6 +2416,12 @@ async function showSettings(interaction) {
       style: ButtonStyle.Danger,
     },
     {
+      customId: "change-text-model",
+      label: "Change Text Model",
+      emoji: "📜",
+      style: ButtonStyle.Secondary,
+    },
+    {
       customId: "generate-image",
       label: "Generate Image",
       emoji: "🎨",
@@ -2616,8 +2693,50 @@ function delay(ms) {
 
 // <=====[Model Response Handling]=====>
 
+
 async function handleModelResponse(initialBotMessage, systemInstruction, history, parts, originalMessage, typingInterval) {
   const userId = originalMessage.author.id;
+  const selectedModel = userPreferredTextModel[userId] || defaultTextModel;
+  let PROVIDER;
+  let MODEL;
+
+  // Determine the provider and model based on the selected model
+  switch (selectedModel) {
+    case "Cohere Command R Plus (Web)":
+      PROVIDER = 'COHERE';
+      MODEL = 'Cohere Command R Plus (Web)';
+      break;
+    case "Groq Llama 3 70B":
+      PROVIDER = 'GROQ';
+      MODEL = 'llama3-70b-8192';
+      break;
+    case "Groq Llama 3 8B":
+      PROVIDER = 'GROQ';
+      MODEL = 'llama3-8b-8192';
+      break;
+    case "Groq Gemma 2 9B":
+      PROVIDER = 'GROQ';
+      MODEL = 'gemma2-9b-it';
+      break;
+    case "Together Qwen 2 72B":
+      PROVIDER = 'TOGETHER';
+      MODEL = 'Qwen/Qwen2-72B-Instruct';
+      break;
+    case "Together Llama 3 70B":
+      PROVIDER = 'TOGETHER';
+      MODEL = 'meta-llama/Llama-3-70b-chat-hf';
+      break;
+    case "Together DBRX":
+      PROVIDER = 'TOGETHER';
+      MODEL = 'databricks/dbrx-instruct';
+      break;
+    default:
+      userPreferredTextModel[userId] = "Cohere Command R Plus (Web)";
+      PROVIDER = 'COHERE';
+      MODEL = 'Cohere Command R Plus (Web)';
+      break;
+  }
+
   const userPreference = originalMessage.guild && serverSettings[originalMessage.guild.id]?.serverResponsePreference ? serverSettings[originalMessage.guild.id].responseStyle : getUserPreference(userId);
   const maxCharacterLimit = userPreference === 'embedded' ? 3900 : 1900;
   let attempts = 3;
@@ -2631,14 +2750,15 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
         .setCustomId('stopGenerating')
         .setLabel('Stop Generating')
         .setStyle(ButtonStyle.Danger)
-    );
+  );
+
   let botMessage;
   if (!initialBotMessage) {
     clearInterval(typingInterval);
     botMessage = await originalMessage.reply({ content: 'Let me think..', components: [row] });
   } else {
     botMessage = initialBotMessage;
-    await botMessage.edit({components: [row] });
+    await botMessage.edit({ components: [row] });
   }
 
   let stopGeneration = false;
@@ -2696,40 +2816,119 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
 
   while (attempts > 0 && !stopGeneration) {
     try {
-      const messages = [
-        { role: "system", content: systemInstruction },
-        ...history,
-        { role: "user", content: parts }
-      ];
-
-      const completion = await openai.chat.completions.create({
-        model: "llama3-70b-8192",
-        messages: messages,
-        stream: true,
-      });
-
       let finalResponse = '';
       let isLargeResponse = false;
+      
+      if (PROVIDER === 'COHERE') {
+        const cohere = new CohereClient({
+          token: process.env.COHERE_API_KEY,
+        });
+        const messages = [
+          { role: 'SYSTEM', message: systemInstruction },
+          ...convertToCohereFormat(history)
+        ];
 
-      for await (const chunk of completion) {
-        if (stopGeneration) break;
+        const chatStream = await cohere.chatStream({
+          chatHistory: messages,
+          message: extractText(parts),
+          connectors: [{ id: 'web-search' }],
+        });
 
-        const chunkText = chunk.choices[0]?.delta?.content || "";
-        finalResponse += chunkText;
-        tempResponse += chunkText;
+        for await (const message of chatStream) {
+          if (stopGeneration) break;
+          
+          if (message.eventType === 'text-generation') {
+            const chunkText = message.text || "";
+            finalResponse += chunkText;
+            tempResponse += chunkText;
 
-        if (finalResponse.length > maxCharacterLimit) {
-          if (!isLargeResponse) {
-            isLargeResponse = true;
-            const embed = new EmbedBuilder()
-              .setColor(0xFFFF00)
-              .setTitle('Response Overflow')
-              .setDescription('The response got too large, will be sent as a text file once it is completed.');
-            
-            await botMessage.edit({ embeds: [embed] });
+            if (finalResponse.length > maxCharacterLimit) {
+              if (!isLargeResponse) {
+                isLargeResponse = true;
+                const embed = new EmbedBuilder()
+                  .setColor(0xFFFF00)
+                  .setTitle('Response Overflow')
+                  .setDescription('The response got too large, will be sent as a text file once it is completed.');
+                await botMessage.edit({ embeds: [embed] });
+              }
+            } else if (!updateTimeout) {
+              updateTimeout = setTimeout(updateMessage, 500);
+            }
           }
-        } else if (!updateTimeout) {
-          updateTimeout = setTimeout(updateMessage, 500);
+        }
+      } else if (PROVIDER === 'TOGETHER') {
+        const openai = new OpenAI({
+          baseURL: 'https://api.together.xyz/v1',
+          apiKey: process.env.OPENAI_TOGETHER_API_KEY
+        });
+        const messages = [
+          { role: "system", content: systemInstruction },
+          ...convertToTextFormat(history),
+          { role: "user", content: extractText(parts) }
+        ];
+
+        const completion = await openai.chat.completions.create({
+          model: MODEL,
+          messages: messages,
+          stream: true,
+        });
+
+        for await (const chunk of completion) {
+          if (stopGeneration) break;
+
+          const chunkText = chunk.choices[0]?.delta?.content || "";
+          finalResponse += chunkText;
+          tempResponse += chunkText;
+
+          if (finalResponse.length > maxCharacterLimit) {
+            if (!isLargeResponse) {
+              isLargeResponse = true;
+              const embed = new EmbedBuilder()
+                .setColor(0xFFFF00)
+                .setTitle('Response Overflow')
+                .setDescription('The response got too large, will be sent as a text file once it is completed.');
+              await botMessage.edit({ embeds: [embed] });
+            }
+          } else if (!updateTimeout) {
+            updateTimeout = setTimeout(updateMessage, 500);
+          }
+        }
+      } else if (PROVIDER === 'GROQ') {
+        const openai = new OpenAI({
+          baseURL: 'https://api.groq.com/openai/v1',
+          apiKey: process.env.OPENAI_GROQ_API_KEY
+        });
+        const messages = [
+          { role: "system", content: systemInstruction },
+          ...history,
+          { role: "user", content: parts }
+        ];
+
+        const completion = await openai.chat.completions.create({
+          model: MODEL,
+          messages: messages,
+          stream: true,
+        });
+
+        for await (const chunk of completion) {
+          if (stopGeneration) break;
+
+          const chunkText = chunk.choices[0]?.delta?.content || "";
+          finalResponse += chunkText;
+          tempResponse += chunkText;
+
+          if (finalResponse.length > maxCharacterLimit) {
+            if (!isLargeResponse) {
+              isLargeResponse = true;
+              const embed = new EmbedBuilder()
+                .setColor(0xFFFF00)
+                .setTitle('Response Overflow')
+                .setDescription('The response got too large, will be sent as a text file once it is completed.');
+              await botMessage.edit({ embeds: [embed] });
+            }
+          } else if (!updateTimeout) {
+            updateTimeout = setTimeout(updateMessage, 500);
+          }
         }
       }
 
@@ -2745,7 +2944,7 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
         if (shouldAddDownloadButton) {
           await addDownloadButton(botMessage);
         } else {
-          await botMessage.edit({components: [] });
+          await botMessage.edit({ components: [] });
         }
       }
       const isServerChatHistoryEnabled = originalMessage.guild ? serverSettings[originalMessage.guild.id]?.serverChatHistory : false;
@@ -2757,7 +2956,7 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
       }
       console.error(error);
       attempts--;
-    
+
       if (attempts === 0 || stopGeneration) {
         if (!stopGeneration) {
           if (SEND_RETRY_ERRORS_TO_DISCORD) {
@@ -2847,6 +3046,47 @@ function updateChatHistory(id, userMessage, modelResponse) {
     role: 'assistant',
     content: modelResponse,
   });
+}
+
+function convertToCohereFormat(input) {
+  return input.map(item => {
+    let message;
+
+    if (Array.isArray(item.content)) {
+      message = item.content.map(contentItem => contentItem.text).join(" ");
+    } else {
+      message = item.content;
+    }
+
+    return {
+      role: item.role.toUpperCase(),
+      message: message
+    };
+  });
+}
+
+function convertToTextFormat(input) {
+  return input.map(item => {
+    let message;
+
+    if (Array.isArray(item.content)) {
+      message = item.content.map(contentItem => contentItem.text).join(" ");
+    } else {
+      message = item.content;
+    }
+
+    return {
+      role: item.role,
+      content: message
+    };
+  });
+}
+
+function extractText(messages) {
+  return messages
+    .filter(message => message.type === 'text')
+    .map(message => message.text)
+    .join(' ');
 }
 
 // <==========>
