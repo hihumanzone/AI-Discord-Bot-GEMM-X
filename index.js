@@ -2994,8 +2994,8 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
         });
         const messages = [
           { role: "system", content: systemInstruction },
-          ...history,
-          { role: "user", content: parts }
+          ...convertToTextFormat(history),
+          { role: "user", content: extractText(parts) }
         ];
 
         const completion = await openai.chat.completions.create({
