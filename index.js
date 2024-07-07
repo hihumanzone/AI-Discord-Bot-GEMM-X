@@ -32,10 +32,10 @@ import pdf from 'pdf-parse';
 import sharp from 'sharp';
 import cheerio from 'cheerio';
 import { YoutubeTranscript } from 'youtube-transcript';
+import axios from 'axios';
 import osu from 'node-os-utils';
 const { mem } = osu;
 const { cpu } = osu;
-import axios from 'axios';
 
 import config from './config.json' assert { type: 'json' };
 
@@ -1320,7 +1320,7 @@ async function changeTextModel(interaction) {
     // Define model names in an array
     const models = [
       'Cohere Command R Plus (Web)', 'Groq Llama 3 70B', 'Groq Llama 3 8B', 'Groq Gemma 2 9B',
-      'Together Qwen 2 72B', 'Together Llama 3 70B', 'Together DBRX'
+      'Together Qwen 2 72B', 'Together Llama 3 70B', 'Together DBRX', 'OpenRouter Phi-3 Medium 128K', 'OpenRouter Gemma 2 9B', 'OpenRouter Llama 3 8B', 'AI/ML GPT 4O', 'AI/ML GPT 4 Turbo', 'AI/ML Claude 3.5 Sonnet'
     ];
 
     const selectedModel = userPreferredTextModel[interaction.user.id] || defaultTextModel;
@@ -2730,8 +2730,31 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
       PROVIDER = 'TOGETHER';
       MODEL = 'databricks/dbrx-instruct';
       break;
+    case "OpenRouter Phi-3 Medium 128K":
+      PROVIDER = 'OPENROUTER';
+      MODEL = 'microsoft/phi-3-medium-128k-instruct:free';
+      break;
+    case "OpenRouter Gemma 2 9B":
+      PROVIDER = 'OPENROUTER';
+      MODEL = 'google/gemma-2-9b-it:free';
+      break;
+    case "OpenRouter Llama 3 8B":
+      PROVIDER = 'OPENROUTER';
+      MODEL = 'meta-llama/llama-3-8b-instruct:free';
+      break;
+    case "AI/ML GPT 4O":
+      PROVIDER = 'AI/ML';
+      MODEL = 'gpt-4o';
+      break;
+    case "AI/ML GPT 4 Turbo":
+      PROVIDER = 'AI/ML';
+      MODEL = 'gpt-4-turbo';
+      break;
+    case "AI/ML Claude 3.5 Sonnet":
+      PROVIDER = 'AI/ML';
+      MODEL = 'claude-3-5-sonnet-20240620';
+      break;
     default:
-      userPreferredTextModel[userId] = "Cohere Command R Plus (Web)";
       PROVIDER = 'COHERE';
       MODEL = 'Cohere Command R Plus (Web)';
       break;
@@ -2806,7 +2829,7 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
       await botMessage.edit({ content: '...' });
     }
     if (userPreference === 'embedded') {
-      await updateEmbed(botMessage, tempResponse, originalMessage);
+      await updateEmbed(botMessage, tempResponse, originalMessage, selectedModel);
     } else {
       await botMessage.edit({ content: tempResponse, embeds: [] });
     }
@@ -2930,6 +2953,82 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
             updateTimeout = setTimeout(updateMessage, 500);
           }
         }
+      } else if (PROVIDER === 'OPENROUTER') {
+        const openai = new OpenAI({
+          baseURL: 'https://openrouter.ai/api/v1',
+          apiKey: process.env.OPENAI_OPENROUTER_API_KEY
+        });
+        const messages = [
+          { role: "system", content: systemInstruction },
+          ...convertToTextFormat(history),
+          { role: "user", content: extractText(parts) }
+        ];
+
+        const completion = await openai.chat.completions.create({
+          model: MODEL,
+          messages: messages,
+          max_tokens: 8192,
+          stream: true,
+        });
+
+        for await (const chunk of completion) {
+          if (stopGeneration) break;
+
+          const chunkText = chunk.choices[0]?.delta?.content || "";
+          finalResponse += chunkText;
+          tempResponse += chunkText;
+
+          if (finalResponse.length > maxCharacterLimit) {
+            if (!isLargeResponse) {
+              isLargeResponse = true;
+              const embed = new EmbedBuilder()
+                .setColor(0xFFFF00)
+                .setTitle('Response Overflow')
+                .setDescription('The response got too large, will be sent as a text file once it is completed.');
+              await botMessage.edit({ embeds: [embed] });
+            }
+          } else if (!updateTimeout) {
+            updateTimeout = setTimeout(updateMessage, 500);
+          }
+        }
+      } else if (PROVIDER === 'AI/ML') {
+        const openai = new OpenAI({
+          baseURL: 'https://api.aimlapi.com',
+          apiKey: process.env.OPENAI_AIML_API_KEY
+        });
+        const messages = [
+          { role: "system", content: systemInstruction },
+          ...history,
+          { role: "user", content: parts }
+        ];
+
+        const completion = await openai.chat.completions.create({
+          model: MODEL,
+          messages: messages,
+          max_tokens: 4096,
+          stream: true,
+        });
+
+        for await (const chunk of completion) {
+          if (stopGeneration) break;
+
+          const chunkText = chunk.choices[0]?.delta?.content || "";
+          finalResponse += chunkText;
+          tempResponse += chunkText;
+
+          if (finalResponse.length > maxCharacterLimit) {
+            if (!isLargeResponse) {
+              isLargeResponse = true;
+              const embed = new EmbedBuilder()
+                .setColor(0xFFFF00)
+                .setTitle('Response Overflow')
+                .setDescription('The response got too large, will be sent as a text file once it is completed.');
+              await botMessage.edit({ embeds: [embed] });
+            }
+          } else if (!updateTimeout) {
+            updateTimeout = setTimeout(updateMessage, 500);
+          }
+        }
       }
 
       if (updateTimeout) {
@@ -2972,7 +3071,9 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
               .setColor(0xFF0000)
               .setTitle('Bot Overloaded')
               .setDescription('Something seems off. Try clearing your conversation history, or the bot might be overloaded! :(');
-            await originalMessage.channel.send({ content: `<@${originalMessage.author.id}>`, embeds: [simpleErrorEmbed] });
+            const errorMsg = await originalMessage.channel.send({ content: `<@${originalMessage.author.id}>`, embeds: [simpleErrorEmbed] });
+            await addSettingsButton(errorMsg);
+            await addSettingsButton(botMessage);
           }
         }
         break;
@@ -2994,13 +3095,13 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
   }
 }
 
-async function updateEmbed(botMessage, finalResponse, message) {
+async function updateEmbed(botMessage, finalResponse, message, selectedModel) {
   try {
     const isGuild = message.guild !== null;
     const embed = new EmbedBuilder()
       .setColor(0x505050)
       .setDescription(finalResponse)
-      .setAuthor({ name: `To ${message.author.displayName}`, iconURL: message.author.displayAvatarURL() })
+      .setAuthor({ name: `To ${message.author.displayName} - ${selectedModel}`, iconURL: message.author.displayAvatarURL() })
       .setTimestamp();
     if (isGuild) {
       embed.setFooter({ text: message.guild.name, iconURL: message.guild.iconURL() || 'https://static.xx.fbcdn.net/rsrc.php/v3/ya/r/KR57YnNJ9wh.png' });
@@ -3080,6 +3181,16 @@ function convertToTextFormat(input) {
       content: message
     };
   });
+}
+
+function convertToHfFormat(jsonArray) {
+    return jsonArray.map(item => {
+        if (Array.isArray(item.content)) {
+            return item.content.map(contentItem => contentItem.text).join(" ");
+        } else {
+            return item.content;
+        }
+    });
 }
 
 function extractText(messages) {
