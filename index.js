@@ -2919,8 +2919,8 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
         });
         const messages = [
           { role: "system", content: systemInstruction },
-          ...history,
-          { role: "user", content: parts }
+          ...convertToTextFormat(history),
+          { role: "user", content: extractText(parts) }
         ];
 
         const completion = await openai.chat.completions.create({
@@ -2994,8 +2994,8 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
         });
         const messages = [
           { role: "system", content: systemInstruction },
-          ...convertToTextFormat(history),
-          { role: "user", content: extractText(parts) }
+          ...convertToTextFormatWithUrl(history),
+          { role: "user", content: extractTextWithUrl(parts) }
         ];
 
         const completion = await openai.chat.completions.create({
@@ -3194,6 +3194,44 @@ function extractText(messages) {
     .filter(message => message.type === 'text')
     .map(message => message.text)
     .join(' ');
+}
+
+function extractTextWithUrl(messages) {
+  return messages
+    .map(message => {
+      if (message.type === 'text') {
+        return message.text;
+      } else if (message.type === 'image_url') {
+        return message.image_url;
+      }
+      return '';
+    })
+    .filter(text => text !== '')
+    .join('\n');
+}
+
+function convertToTextFormatWithUrl(input) {
+  return input.map(item => {
+    let message;
+
+    if (Array.isArray(item.content)) {
+      message = item.content.map(contentItem => {
+        if (contentItem.type === 'text') {
+          return contentItem.text;
+        } else if (contentItem.type === 'image_url') {
+          return contentItem.image_url;
+        }
+        return '';
+      }).filter(text => text !== '').join('\n');
+    } else {
+      message = item.content;
+    }
+
+    return {
+      role: item.role,
+      content: message
+    };
+  });
 }
 
 // <==========>
