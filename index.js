@@ -1320,7 +1320,7 @@ async function changeTextModel(interaction) {
     // Define model names in an array
     const models = [
       'Cohere Command R Plus (Web)', 'Groq Llama 3 70B', 'Groq Llama 3 8B', 'Groq Gemma 2 9B',
-      'Together Qwen 2 72B', 'Together Llama 3 70B', 'Together DBRX', 'OpenRouter Phi-3 Medium 128K', 'OpenRouter Gemma 2 9B', 'OpenRouter Llama 3 8B', 'AI/ML GPT 4O', 'AI/ML GPT 4 Turbo', 'AI/ML Claude 3.5 Sonnet'
+      'Together Qwen 2 72B', 'Together Llama 3 70B', 'Together DBRX', 'OpenRouter Phi-3 Medium 128K', 'OpenRouter Gemma 2 9B', 'OpenRouter Llama 3 8B', 'KrakenAI Gemini 1.5 Flash', 'KrakenAI Claude 3.5 Sonnet'
     ];
 
     const selectedModel = userPreferredTextModel[interaction.user.id] || defaultTextModel;
@@ -2742,17 +2742,13 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
       PROVIDER = 'OPENROUTER';
       MODEL = 'meta-llama/llama-3-8b-instruct:free';
       break;
-    case "AI/ML GPT 4O":
-      PROVIDER = 'AI/ML';
-      MODEL = 'gpt-4o';
+    case "KrakenAI Gemini 1.5 Flash":
+      PROVIDER = 'KRAKENAI';
+      MODEL = 'gemini-1.5-flash';
       break;
-    case "AI/ML GPT 4 Turbo":
-      PROVIDER = 'AI/ML';
-      MODEL = 'gpt-4-turbo';
-      break;
-    case "AI/ML Claude 3.5 Sonnet":
-      PROVIDER = 'AI/ML';
-      MODEL = 'claude-3-5-sonnet-20240620';
+    case "KrakenAI Claude 3.5 Sonnet":
+      PROVIDER = 'KRAKENAI';
+      MODEL = 'claude-3.5-sonnet';
       break;
     default:
       PROVIDER = 'COHERE';
@@ -2991,10 +2987,10 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
             updateTimeout = setTimeout(updateMessage, 500);
           }
         }
-      } else if (PROVIDER === 'AI/ML') {
+      } else if (PROVIDER === 'KRAKENAI') {
         const openai = new OpenAI({
-          baseURL: 'https://api.aimlapi.com',
-          apiKey: process.env.OPENAI_AIML_API_KEY
+          baseURL: 'https://api.cracked.systems/v1',
+          apiKey: process.env.OPENAI_KRAKENAI_API_KEY
         });
         const messages = [
           { role: "system", content: systemInstruction },
