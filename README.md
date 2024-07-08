@@ -1,4 +1,4 @@
-# umder construction, the bot works tho..
+# Readme is under construction, the bot works tho..
 
 ## API KEY PROVIDERS:
 - Groq: https://console.groq.com/keys
