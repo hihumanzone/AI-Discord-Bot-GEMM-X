@@ -420,4 +420,4 @@ export {
   generateWithPlayground,
   generateImage,
   generateWithDalle3
-};};
+};
