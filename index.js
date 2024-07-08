@@ -23,6 +23,11 @@ import {
   Routes,
 } from 'discord.js';
 import OpenAI from "openai";
+import {
+  GoogleGenerativeAI,
+  HarmBlockThreshold,
+  HarmCategory
+} from '@google/generative-ai';
 import { CohereClient } from 'cohere-ai';
 import { writeFile, unlink } from 'fs/promises';
 import fs from 'fs';
@@ -30,6 +35,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pdf from 'pdf-parse';
 import sharp from 'sharp';
+import url from 'url';
 import cheerio from 'cheerio';
 import { YoutubeTranscript } from 'youtube-transcript';
 import axios from 'axios';
@@ -185,6 +191,7 @@ const defaultPersonality = config.defaultPersonality;
 const defaultServerSettings = config.defaultServerSettings;
 const workInDMs = config.workInDMs;
 const shouldDisplayPersonalityButtons = config.shouldDisplayPersonalityButtons;
+const shouldDisplayTextModelButton = config.shouldDisplayTextModelButton;
 const SEND_RETRY_ERRORS_TO_DISCORD = config.SEND_RETRY_ERRORS_TO_DISCORD;
 
 import {
@@ -525,6 +532,7 @@ client.on('interactionCreate', async (interaction) => {
 async function handleTextMessage(message) {
   const botId = client.user.id;
   const userId = message.author.id;
+  const selectedModel = userPreferredTextModel[userId] || defaultTextModel;
   const guildId = message.guild?.id;
   let messageContent = message.content.replace(new RegExp(`<@!?${botId}>`), '').trim();
 
@@ -537,6 +545,16 @@ async function handleTextMessage(message) {
     await addSettingsButton(botMessage);
     return;
   }
+  
+  if (hasImageAttachments(message) && !['KrakenAI Gemini 1.5 Flash', 'KrakenAI Claude 3.5 Sonnet', 'Google Gemini 1.5 Flash', 'Google Gemini 1.5 Pro'].includes(selectedModel)) {
+    const embed = new EmbedBuilder()
+      .setColor(0x00FFFF)
+      .setTitle('Unsupported Model')
+      .setDescription("The selected model does not support image attachments.");
+    const warning = await message.reply({ embeds: [embed] });
+    await addSettingsButton(warning);
+  }
+  
   message.channel.sendTyping();
   const typingInterval = setInterval(() => {
     message.channel.sendTyping();
@@ -610,12 +628,10 @@ async function handleTextMessage(message) {
 
   const history = isServerChatHistoryEnabled ? getHistory(guildId) : getHistory(userId);
 
-  await handleModelResponse(botMessage, systemInstruction, history, parts, message, typingInterval);
+  await handleModelResponse(botMessage, systemInstruction, history, parts, message, typingInterval, selectedModel);
 }
 
-const supportedMimeTypes = [
-  'image/png', 'image/jpg', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif'
-];
+const supportedMimeTypePrefix = 'image/';
 
 function hasSupportedAttachments(message) {
   const supportedFileExtensions = [
@@ -624,7 +640,15 @@ function hasSupportedAttachments(message) {
 
   return message.attachments.some((attachment) => {
     const fileExtension = attachment.name.split('.').pop().toLowerCase();
-    return supportedMimeTypes.includes(attachment.contentType) || supportedFileExtensions.includes(fileExtension);
+    return attachment.contentType.startsWith(supportedMimeTypePrefix) || supportedFileExtensions.includes(fileExtension);
+  });
+}
+
+function hasImageAttachments(message) {
+  const supportedMimeTypePrefix = 'image/';
+  
+  return message.attachments.some((attachment) => {
+    return attachment.contentType.startsWith(supportedMimeTypePrefix);
   });
 }
 
@@ -634,7 +658,7 @@ async function processPromptAndMediaAttachments(prompt, message) {
 
   if (attachments.length > 0) {
     const validAttachments = attachments.filter(
-      (attachment) => supportedMimeTypes.includes(attachment.contentType)
+      (attachment) => attachment.contentType.startsWith(supportedMimeTypePrefix)
     );
 
     if (validAttachments.length > 0) {
@@ -648,6 +672,99 @@ async function processPromptAndMediaAttachments(prompt, message) {
   }
 
   return parts;
+}
+
+async function convertStructureForGemini(input) {
+  async function convertContent(content) {
+    const textPart = content.find(part => part.type === 'text');
+    const newContent = await processPromptAndImageAttachmentsForGemini(textPart ? textPart.text : '', { attachments: new Map() });
+
+    const imageParts = content.filter(part => part.type === 'image_url');
+    if (imageParts.length > 0) {
+      return await convertInputToExpectedFormatForGemini(content);
+    }
+    return newContent;
+  }
+  
+  return await Promise.all(input.map(async entry => {
+    const role = entry.role === 'user' ? 'user' : 'model';
+    const parts = entry.content;
+
+    let convertedParts;
+    if (Array.isArray(parts)) {
+      convertedParts = await convertContent(parts);
+    } else {
+      convertedParts = [{ text: parts }];
+    }
+
+    return {
+      role: role,
+      parts: convertedParts
+    };
+  }));
+}
+
+async function processPromptAndImageAttachmentsForGemini(prompt, message) {
+  const attachments = Array.from(message.attachments.values());
+  let parts = [{ text: prompt }];
+
+  if (attachments.length > 0) {
+    const imageAttachments = attachments.filter(attachment => attachment.contentType && attachment.contentType.startsWith('image/'));
+
+    if (imageAttachments.length > 0) {
+      const attachmentParts = await Promise.all(
+        imageAttachments.map(async (attachment) => {
+          const response = await fetch(attachment.url);
+          const buffer = await response.arrayBuffer();
+          let imageBuffer = Buffer.from(buffer);
+
+          if (imageBuffer.length > 5 * 1024 * 1024) {
+            imageBuffer = await sharp(imageBuffer)
+              .resize(3072, 3072, {
+                fit: sharp.fit.inside,
+                withoutEnlargement: true
+              })
+              .jpeg({ quality: 80 })
+              .toBuffer();
+
+            if (imageBuffer.length > 5 * 1024 * 1024) {
+              imageBuffer = await sharp(imageBuffer)
+                .resize(2048, 2048, {
+                  fit: sharp.fit.inside,
+                  withoutEnlargement: true
+                })
+                .jpeg({ quality: 60 })
+                .toBuffer();
+            }
+          }
+
+          return {
+            inlineData: {
+              data: imageBuffer.toString('base64'),
+              mimeType: attachment.contentType || 'application/octet-stream'
+            }
+          };
+        })
+      );
+      parts = [...parts, ...attachmentParts];
+    }
+  }
+  return parts;
+}
+
+async function convertInputToExpectedFormatForGemini(content) {
+  const prompt = content.find(part => part.type === 'text')?.text || '';
+  const imageUrls = content.filter(part => part.type === 'image_url').map(part => part.image_url);
+
+  const message = {
+    attachments: new Map(imageUrls.map((imageUrl, index) => {
+      const parsedUrl = url.parse(imageUrl);
+      const extension = path.extname(parsedUrl.pathname).replace(".", "") || 'jpeg';
+      return [index, { url: imageUrl, contentType: `image/${extension}` }];
+    }))
+  };
+  
+  return processPromptAndImageAttachmentsForGemini(prompt, message);
 }
 
 async function extractFileText(message, messageContent) {
@@ -1320,7 +1437,7 @@ async function changeTextModel(interaction) {
     // Define model names in an array
     const models = [
       'Cohere Command R Plus (Web)', 'Groq Llama 3 70B', 'Groq Llama 3 8B', 'Groq Gemma 2 9B',
-      'Together Qwen 2 72B', 'Together Llama 3 70B', 'Together DBRX', 'OpenRouter Phi-3 Medium 128K', 'OpenRouter Gemma 2 9B', 'OpenRouter Llama 3 8B', 'KrakenAI Gemini 1.5 Flash', 'KrakenAI Claude 3.5 Sonnet'
+      'Together Qwen 2 72B', 'Together Llama 3 70B', 'Together DBRX', 'OpenRouter Phi-3 Medium 128K', 'OpenRouter Gemma 2 9B', 'OpenRouter Llama 3 8B', 'KrakenAI Gemini 1.5 Flash', 'KrakenAI Claude 3.5 Sonnet', 'Google Gemini 1.5 Flash', 'Google Gemini 1.5 Pro'
     ];
 
     const selectedModel = userPreferredTextModel[interaction.user.id] || defaultTextModel;
@@ -2406,20 +2523,13 @@ async function showSettings(interaction) {
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
   }
-
-  // Define button configurations in an array
+  
   let buttonConfigs = [
     {
       customId: "clear",
       label: "Clear Memory",
       emoji: "🧹",
       style: ButtonStyle.Danger,
-    },
-    {
-      customId: "change-text-model",
-      label: "Change Text Model",
-      emoji: "📜",
-      style: ButtonStyle.Secondary,
     },
     {
       customId: "generate-image",
@@ -2489,7 +2599,17 @@ async function showSettings(interaction) {
     },
   ];
 
-  // Conditionally add personality buttons
+  if (shouldDisplayTextModelButton) {
+    buttonConfigs.splice(1, 0,
+      {
+        customId: "change-text-model",
+        label: "Change Text Model",
+        emoji: "📜",
+        style: ButtonStyle.Secondary,
+      }
+    );
+  }
+
   if (shouldDisplayPersonalityButtons) {
     buttonConfigs.splice(1, 0,
       {
@@ -2507,7 +2627,6 @@ async function showSettings(interaction) {
     );
   }
 
-  // Generate buttons from configurations
   const allButtons = buttonConfigs.map((config) =>
     new ButtonBuilder()
       .setCustomId(config.customId)
@@ -2516,7 +2635,6 @@ async function showSettings(interaction) {
       .setStyle(config.style)
   );
 
-  // Split buttons into action rows
   const actionRows = [];
   while (allButtons.length > 0) {
     actionRows.push(
@@ -2524,7 +2642,6 @@ async function showSettings(interaction) {
     );
   }
 
-  // Reply to the interaction
   const embed = new EmbedBuilder()
     .setColor(0x00FFFF)
     .setTitle('Settings')
@@ -2694,9 +2811,8 @@ function delay(ms) {
 // <=====[Model Response Handling]=====>
 
 
-async function handleModelResponse(initialBotMessage, systemInstruction, history, parts, originalMessage, typingInterval) {
+async function handleModelResponse(initialBotMessage, systemInstruction, history, parts, originalMessage, typingInterval, selectedModel) {
   const userId = originalMessage.author.id;
-  const selectedModel = userPreferredTextModel[userId] || defaultTextModel;
   let PROVIDER;
   let MODEL;
 
@@ -2749,6 +2865,14 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
     case "KrakenAI Claude 3.5 Sonnet":
       PROVIDER = 'KRAKENAI';
       MODEL = 'claude-3.5-sonnet';
+      break;
+    case "Google Gemini 1.5 Flash":
+      PROVIDER = 'GOOGLE';
+      MODEL = 'gemini-1.5-flash';
+      break;
+    case "Google Gemini 1.5 Pro":
+      PROVIDER = 'GOOGLE';
+      MODEL = 'gemini-1.5-pro';
       break;
     default:
       PROVIDER = 'COHERE';
@@ -3012,6 +3136,43 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
           finalResponse += chunkText;
           tempResponse += chunkText;
 
+          if (finalResponse.length > maxCharacterLimit) {
+            if (!isLargeResponse) {
+              isLargeResponse = true;
+              const embed = new EmbedBuilder()
+                .setColor(0xFFFF00)
+                .setTitle('Response Overflow')
+                .setDescription('The response got too large, will be sent as a text file once it is completed.');
+              await botMessage.edit({ embeds: [embed] });
+            }
+          } else if (!updateTimeout) {
+            updateTimeout = setTimeout(updateMessage, 500);
+          }
+        }
+      } else if (PROVIDER === 'GOOGLE') {
+        const safetySettings = [{ category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE, }, { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE, }, { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE, }, { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE, }, ];
+        
+        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+        
+        const model = await genAI.getGenerativeModel({
+          model: MODEL,
+          systemInstruction: { role: "system", parts: [{ text: systemInstruction }] }
+        });
+        
+        const chat = model.startChat({
+          history: await convertStructureForGemini(history),
+          safetySettings,
+        });
+
+        const messageResult = await chat.sendMessageStream(await convertInputToExpectedFormatForGemini(parts));
+
+        for await (const chunk of messageResult.stream) {
+          if (stopGeneration) break;
+        
+          const chunkText = await chunk.text();
+          finalResponse += chunkText;
+          tempResponse += chunkText;
+        
           if (finalResponse.length > maxCharacterLimit) {
             if (!isLargeResponse) {
               isLargeResponse = true;
