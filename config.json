@@ -1,10 +1,11 @@
 {
   "defaultResponseFormat": "embedded",
   "defaultImgModel": "SD-XL",
-  "defaultTextModel": "Cohere Command R Plus (Web)",
+  "defaultTextModel": "OpenRouter Gemma 2 9B",
   "defaultUrlReading": "OFF",
-  "workInDMs": true,
+  "workInDMs": false,
   "shouldDisplayPersonalityButtons": true,
+  "shouldDisplayTextModelButton": true,
   "SEND_RETRY_ERRORS_TO_DISCORD": false,
   "bannerMusicGen": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAACACAYAAADktbcKAAADOElEQVR4Ae3UwQ0AIAwDscL+OwMPtjgjMUCcKmtmzvseAQJBgR3MLDIBAl/AADgFAmEBAxAuX3QCBsANEAgLGIBw+aITMABugEBYwACEyxedgAFwAwTCAgYgXL7oBAyAGyAQFjAA4fJFJ2AA3ACBsIABCJcvOgED4AYIhAUMQLh80QkYADdAICxgAMLli07AALgBAmEBAxAuX3QCBsANEAgLGIBw+aITMABugEBYwACEyxedgAFwAwTCAgYgXL7oBAyAGyAQFjAA4fJFJ2AA3ACBsIABCJcvOgED4AYIhAUMQLh80QkYADdAICxgAMLli07AALgBAmEBAxAuX3QCBsANEAgLGIBw+aITMABugEBYwACEyxedgAFwAwTCAgYgXL7oBAyAGyAQFjAA4fJFJ2AA3ACBsIABCJcvOgED4AYIhAUMQLh80QkYADdAICxgAMLli07AALgBAmEBAxAuX3QCBsANEAgLGIBw+aITMABugEBYwACEyxedgAFwAwTCAgYgXL7oBAyAGyAQFjAA4fJFJ2AA3ACBsIABCJcvOgED4AYIhAUMQLh80Qlc6QQB/7svaWEAAAAASUVORK5CYII=",
   "nevPrompt": "NSFW, rating_explicit",
