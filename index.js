@@ -43,7 +43,7 @@ import osu from 'node-os-utils';
 const { mem } = osu;
 const { cpu } = osu;
 
-import config from './config.json' assert { type: 'json' };
+const config = JSON.parse(fs.readFileSync('config.json', 'utf-8'));
 
 const client = new Client({
   intents: [
@@ -1390,7 +1390,7 @@ async function changeImageModel(interaction) {
   try {
     // Define model names in an array
     const models = [
-      'SD-XL', 'SD-3', 'Playground', 'Anime', 'Anime-Alt', 'Stable-Cascade', 'DallE-XL', 'PixArt-Sigma', 'Mobius'/*, 'DallE-3'*/
+      'SD-XL', 'SD-3', 'Playground', 'Anime', 'Anime-Alt', 'Stable-Cascade', 'DallE-XL', 'PixArt-Sigma', 'Mobius', 'Kolors'/*, 'DallE-3'*/
       ];
     
     const selectedModel = userPreferredImageModel[interaction.user.id] || defaultImgModel;
@@ -1566,6 +1566,7 @@ const speechMusicModelFunctions = {
 const imageModelFunctions = {
   'SD-XL': generateImage,
   'SD-3': generateImage,
+  'Kolors': generateImage,
   'Playground': generateWithPlayground,
   'Anime': generateImage,
   'Anime-Alt': generateImage,
@@ -3421,7 +3422,7 @@ async function retryOperation(fn, maxRetries, delayMs = 1000) {
   throw new Error(`Operation failed after ${maxRetries} attempts: ${error.message}`);
 }
 
-import nsfwWordsArray from './nsfwWords.json' assert { type: 'json' };
+const nsfwWordsArray = JSON.parse(fs.readFileSync('nsfwWords.json', 'utf-8'));
 
 function filterPrompt(text) {
   nsfwWordsArray.forEach(word => {
