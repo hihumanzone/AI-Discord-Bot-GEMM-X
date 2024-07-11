@@ -181,6 +181,7 @@ loadStateFromFile();
 
 const defaultResponseFormat = config.defaultResponseFormat;
 const defaultImgModel = config.defaultImgModel;
+const hexColour = config.hexColour;
 const defaultTextModel = config.defaultTextModel;
 const defaultUrlReading = config.defaultUrlReading;
 const activities = config.activities.map(activity => ({
@@ -378,6 +379,7 @@ async function handleButtonInteraction(interaction) {
     'response-server-mode': toggleServerPreference,
     'toggle-response-server-mode': toggleServerResponsePreference,
     'settings': showSettings,
+    'back_to_main_settings': editShowSettings,
     'clear-memory': handleClearMemoryCommand,
     'always-respond': alwaysRespond,
     'custom-personality': handleCustomPersonalityCommand,
@@ -479,6 +481,10 @@ async function handleToggleResponseMode(interaction) {
       .setDescription('Toggling Response Mode is not enabled for this server, Server-Wide Response Mode is active.');
     await interaction.reply({ embeds: [embed], ephemeral: true });
   }
+}
+
+async function editShowSettings(interaction) {
+  await showSettings(interaction, true);
 }
 
 // <==========>
@@ -1013,7 +1019,7 @@ async function handleSuccessfulSpeechGeneration(interaction, text, language, out
     const isGuild = interaction.guild !== null;
     const file = new AttachmentBuilder(outputUrl).setName('speech.wav');
     const embed = new EmbedBuilder()
-      .setColor(0x505050)
+      .setColor(hexColour)
       .setAuthor({ name: `To ${interaction.user.displayName}`, iconURL: interaction.user.displayAvatarURL() })
       .setDescription(`Here Is Your Generated Speech\n**Prompt:**\n\`\`\`${text.length > 3900 ? text.substring(0, 3900) + '...' : text}\`\`\``)
       .addFields(
@@ -1037,7 +1043,7 @@ async function handleSuccessfulMusicGeneration(interaction, text, outputUrl) {
     const isGuild = interaction.guild !== null;
     const file = new AttachmentBuilder(outputUrl).setName('music.mp4');
     const embed = new EmbedBuilder()
-      .setColor(0x505050)
+      .setColor(hexColour)
       .setAuthor({ name: `To ${interaction.user.displayName}`, iconURL: interaction.user.displayAvatarURL() })
       .setDescription(`Here Is Your Generated Music\n**Prompt:**\n\`\`\`${text.length > 3900 ? text.substring(0, 3900) + '...' : text}\`\`\``)
       .addFields(
@@ -1119,7 +1125,7 @@ async function genimg(prompt, message) {
     const imageExtension = path.extname(imageUrl) || '.png';
     const attachment = new AttachmentBuilder(imageUrl, { name: `generated-image${imageExtension}` });
     const embed = new EmbedBuilder()
-      .setColor(0x505050)
+      .setColor(hexColour)
       .setAuthor({ name: `To ${message.author.displayName}`, iconURL: message.author.displayAvatarURL() })
       .setDescription(`Here Is Your Generated Image\n**Original Prompt:**\n\`\`\`${prompt.length > 3900 ? prompt.substring(0, 3900) + '...' : prompt}\`\`\``)
       .addFields(
@@ -1203,7 +1209,7 @@ async function generateAndSendImage(prompt, interaction) {
     const attachment = new AttachmentBuilder(imageUrl, { name: `generated-image${imageExtension}` });
     
     const embed = new EmbedBuilder()
-      .setColor(0x505050)
+      .setColor(hexColour)
       .setAuthor({ name: `To ${interaction.user.displayName}`, iconURL: interaction.user.displayAvatarURL() })
       .setDescription(`Here Is Your Generated Image\n**Original Prompt:**\n\`\`\`${prompt.length > 3900 ? prompt.substring(0, 3900) + '...' : prompt}\`\`\``)
       .addFields(
@@ -1797,19 +1803,10 @@ async function alwaysRespond(interaction) {
 
     if (activeUsersInChannels[channelId][userId]) {
       delete activeUsersInChannels[channelId][userId];
-      const offEmbed = new EmbedBuilder()
-        .setColor(0xFFA500)
-        .setTitle('Bot Response Disabled')
-        .setDescription('Bot response to your messages is turned `OFF`.');
-      await interaction.reply({ embeds: [offEmbed], ephemeral: true });
     } else {
       activeUsersInChannels[channelId][userId] = true;
-      const onEmbed = new EmbedBuilder()
-        .setColor(0x00FF00)
-        .setTitle('Bot Response Enabled')
-        .setDescription('Bot response to your messages is turned `ON`.');
-      await interaction.reply({ embeds: [onEmbed], ephemeral: true });
     }
+    await handleSubButtonInteraction(interaction, true);
   } catch (error) {
     console.log(error.message);
   }
@@ -1885,7 +1882,7 @@ async function handleStatusCommand(interaction) {
         const timeLeft = `${hours}h ${minutes}m ${seconds}s`;
 
         const embed = new EmbedBuilder()
-          .setColor(0x505050)
+          .setColor(hexColour)
           .setTitle('System Information')
           .addFields(
             { name: 'Memory (RAM)', value: `Total Memory: \`${totalMemMb}\` MB\nUsed Memory: \`${usedMemMb}\` MB\nFree Memory: \`${freeMemMb}\` MB\nPercentage Of Free Memory: \`${freeMemPercentage}\`%`, inline: true },
@@ -2181,13 +2178,7 @@ async function toggleUrlUserPreference(interaction) {
     const userId = interaction.user.id;
     const currentPreference = getUrlUserPreference(userId);
     userPreferredUrlHandle[userId] = currentPreference === 'OFF' ? 'ON' : 'OFF';
-    const updatedPreference = getUrlUserPreference(userId);
-    const embed = new EmbedBuilder()
-      .setColor(0x00FF00)
-      .setTitle('URL Handling Updated')
-      .setDescription(`URL handling has been switched from \`${currentPreference}\` to \`${updatedPreference}\`.`);
-    
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await handleSubButtonInteraction(interaction, true);
   } catch (error) {
     console.log(error.message);
   }
@@ -2199,13 +2190,7 @@ async function toggleUserPreference(interaction) {
     const userId = interaction.user.id;
     const currentPreference = getUserPreference(userId);
     userResponsePreference[userId] = currentPreference === 'normal' ? 'embedded' : 'normal';
-    const updatedPreference = getUserPreference(userId);
-    const embed = new EmbedBuilder()
-      .setColor(0x00FF00)
-      .setTitle('Response Setting Updated')
-      .setDescription(`Your responses have been switched from \`${currentPreference}\` to \`${updatedPreference}\`.`);
-    
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await handleSubButtonInteraction(interaction, true);
   } catch (error) {
     console.log(error.message);
   }
@@ -2470,7 +2455,7 @@ async function toggleServerPreference(interaction) {
   }
 }
 
-async function showSettings(interaction) {
+async function showSettings(interaction, edit = false) {
   try {
     if (interaction.guild) {
       initializeBlacklistForGuild(interaction.guild.id);
@@ -2506,18 +2491,29 @@ async function showSettings(interaction) {
       .setTitle('Settings')
       .setDescription('Please choose a category from the buttons below:');
 
-    await interaction.reply({ embeds: [embed], components: [mainActionRow], ephemeral: true });
+    if (edit) {
+      await interaction.update({ embeds: [embed], components: [mainActionRow], ephemeral: true });
+    } else {
+      await interaction.reply({ embeds: [embed], components: [mainActionRow], ephemeral: true });
+    }
   } catch (error) {
     console.error('Error showing settings:', error.message);
   }
 }
 
-async function handleSubButtonInteraction(interaction) {
+async function handleSubButtonInteraction(interaction, update = false) {
+  const channelId = interaction.channel.id;
+  const userId = interaction.user.id;
+  if (!activeUsersInChannels[channelId]) {
+    activeUsersInChannels[channelId] = {};
+  }
+  const responseMode = getUserPreference(userId);
+  const urlMode = getUrlUserPreference(userId);
   const subButtonConfigs = {
     'general-settings': [
-      { customId: 'always-respond', label: 'Always Respond', emoji: '↩️', style: ButtonStyle.Secondary },
-      { customId: 'toggle-response-mode', label: 'Toggle Response Mode', emoji: '📝', style: ButtonStyle.Secondary },
-      { customId: 'toggle-url-mode', label: 'Toggle URL Mode', emoji: '🌐', style: ButtonStyle.Secondary },
+      { customId: 'always-respond', label: `Always Respond: ${activeUsersInChannels[channelId][userId] ? 'ON' : 'OFF'}`, emoji: '↩️', style: ButtonStyle.Secondary },
+      { customId: 'toggle-response-mode', label: `Toggle Response Mode: ${responseMode}`, emoji: '📝', style: ButtonStyle.Secondary },
+      { customId: 'toggle-url-mode', label: `Toggle URL Mode: ${urlMode}`, emoji: '🌐', style: ButtonStyle.Secondary },
       { customId: 'download-conversation', label: 'Download Conversation', emoji: '🗃️', style: ButtonStyle.Secondary },
       // Add conditionally shown buttons
       ...(shouldDisplayTextModelButton ? [{ customId: 'change-text-model', label: 'Change Text Model', emoji: '📜', style: ButtonStyle.Secondary }] : []),
@@ -2525,29 +2521,33 @@ async function handleSubButtonInteraction(interaction) {
         { customId: 'custom-personality', label: 'Custom Personality', emoji: '🙌', style: ButtonStyle.Primary },
         { customId: 'remove-personality', label: 'Remove Personality', emoji: '🤖', style: ButtonStyle.Danger },
       ] : []),
+      { customId: 'back_to_main_settings', label: 'Back', emoji: '🔙', style: ButtonStyle.Secondary },
     ],
     'image-settings': [
       { customId: 'generate-image', label: 'Generate Image', emoji: '🎨', style: ButtonStyle.Primary },
       { customId: 'change-image-model', label: 'Change Image Model', emoji: '👨‍🎨', style: ButtonStyle.Secondary },
       { customId: 'toggle-prompt-enhancer', label: 'Toggle Prompt Enhancer', emoji: '🪄', style: ButtonStyle.Secondary },
       { customId: 'change-image-resolution', label: 'Change Image Resolution', emoji: '🖼️', style: ButtonStyle.Secondary },
+      { customId: 'back_to_main_settings', label: 'Back', emoji: '🔙', style: ButtonStyle.Secondary },
     ],
     'speech-settings': [
       { customId: 'generate-speech', label: 'Generate Speech', emoji: '🎤', style: ButtonStyle.Primary },
       { customId: 'change-speech-model', label: 'Change Speech Model', emoji: '🔈', style: ButtonStyle.Secondary },
+      { customId: 'back_to_main_settings', label: 'Back', emoji: '🔙', style: ButtonStyle.Secondary },
     ],
     'music-settings': [
       { customId: 'generate-music', label: 'Generate Music', emoji: '🎹', style: ButtonStyle.Primary },
+      { customId: 'back_to_main_settings', label: 'Back', emoji: '🔙', style: ButtonStyle.Secondary },
     ],
   };
 
-  if (subButtonConfigs[interaction.customId]) {
-    const subButtons = subButtonConfigs[interaction.customId].map(config => 
+  if (update || subButtonConfigs[interaction.customId]) {
+    const subButtons = subButtonConfigs[update ? 'general-settings' : interaction.customId].map(config =>
       new ButtonBuilder()
-        .setCustomId(config.customId)
-        .setLabel(config.label)
-        .setEmoji(config.emoji)
-        .setStyle(config.style)
+      .setCustomId(config.customId)
+      .setLabel(config.label)
+      .setEmoji(config.emoji)
+      .setStyle(config.style)
     );
 
     const actionRows = [];
@@ -2559,7 +2559,7 @@ async function handleSubButtonInteraction(interaction) {
       embeds: [
         new EmbedBuilder()
           .setColor(0x00FFFF)
-          .setTitle(`${interaction.customId.replace('-', ' ').toUpperCase()} Settings`)
+          .setTitle(`${update ? 'General Settings' : interaction.customId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}`)
           .setDescription('Please choose an option from the buttons below:'),
       ],
       components: actionRows,
@@ -3170,7 +3170,7 @@ async function updateEmbed(botMessage, finalResponse, message, selectedModel) {
   try {
     const isGuild = message.guild !== null;
     const embed = new EmbedBuilder()
-      .setColor(0x505050)
+      .setColor(hexColour)
       .setDescription(finalResponse)
       .setAuthor({ name: `To ${message.author.displayName} - ${selectedModel}`, iconURL: message.author.displayAvatarURL() })
       .setTimestamp();
