@@ -1,9 +1,10 @@
 {
   "defaultResponseFormat": "embedded",
+  "hexColour": "#505050",
   "defaultImgModel": "SD-XL",
   "defaultTextModel": "OpenRouter Gemma 2 9B",
   "defaultUrlReading": "OFF",
-  "workInDMs": false,
+  "workInDMs": true,
   "shouldDisplayPersonalityButtons": true,
   "shouldDisplayTextModelButton": true,
   "SEND_RETRY_ERRORS_TO_DISCORD": false,
