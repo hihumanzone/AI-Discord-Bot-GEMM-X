@@ -285,11 +285,11 @@ const modelsData = {
     dataPattern: (prompt, randomDigit, size) => [prompt, nevPrompt, randomDigit, 1024, 1024, 7, 35, "DPM++ 2M SDE Karras", size, false, 0.55, 1.5, true]
   },
   "SD-XL": {
-    url: "https://typegpt-image-gen-pro.hf.space",
-    fnIndex: 3,
-    triggerId: 10,
+    url: "https://kingnish-sdxl-flash.hf.space",
+    fnIndex: 2,
+    triggerId: 5,
     useSize: false,
-    dataPattern: (prompt, randomDigit, width, height) => ["Image Generation", null, prompt, 35, "Randomize Seed", randomDigit, 7.3, 1.7, width, height, "BEST"]
+    dataPattern: (prompt, randomDigit, width, height) => [prompt, nevPrompt, true, randomDigit, width, height, 4, 12, true, 1]
   },
   "PixArt-Sigma": {
     url: "https://pixart-alpha-pixart-sigma.hf.space",
