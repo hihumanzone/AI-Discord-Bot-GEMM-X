@@ -1,8 +1,9 @@
 {
   "defaultResponseFormat": "embedded",
   "hexColour": "#505050",
+  "defaultPromptEnhancerPreference": true,
   "defaultImgModel": "SD-XL",
-  "defaultTextModel": "OpenRouter Gemma 2 9B",
+  "defaultTextModel": "Groq Gemma 2 9B",
   "defaultUrlReading": "OFF",
   "workInDMs": true,
   "shouldDisplayPersonalityButtons": true,
