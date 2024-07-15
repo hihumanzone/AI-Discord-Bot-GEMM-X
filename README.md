@@ -37,6 +37,21 @@ GEMM-X Discord Bot is a versatile and intelligent Discord assistant leveraging c
     Create a `.env` file in the root directory and add your Discord bot token and API keys for the various providers:
 
     ```env
+    DISCORD_BOT_TOKEN=your_discord_bot_token
+
+    # for prompt enhancer..
+    OPENAI_BASE_URL=https://api.openai.com/v1
+    # https://api.groq.com/openai/v1
+    # for groq ⤴️
+    OPENAI_API_KEY=your_openai_api_key
+    
+    OPENAI_GROQ_API_KEY=your_openai_groq_api_key
+    OPENAI_TOGETHER_API_KEY=your_openai_together_api_key
+    OPENAI_OPENROUTER_API_KEY=your_openai_openrouter_api_key
+    OPENAI_KRAKENAI_API_KEY=your_openai_krakenai_api_key
+    
+    GOOGLE_API_KEY=your_google_gemini_api_key
+    COHERE_API_KEY=your_cohere_api_key
     ```
 
 4. Configure the bot:
@@ -104,6 +119,23 @@ Contains an array of words that should be filtered from prompts.
 - **Google:** [Get API Key](https://aistudio.google.com/app/apikey)
 - **Cohere:** [Get API Key](https://dashboard.cohere.com/api-keys)
 
+### Models
+
+1. Cohere Command R Plus (Web)
+2. Groq Llama 3 70B
+3. Groq Llama 3 8B
+4. Groq Gemma 2 9B
+5. Together Qwen 2 72B
+6. Together Llama 3 70B
+7. Together DBRX
+8. OpenRouter Phi-3 Medium 128K
+9. OpenRouter Gemma 2 9B
+10. OpenRouter Llama 3 8B
+11. KrakenAI Gemini 1.5 Flash
+12. KrakenAI Claude 3.5 Sonnet
+13. Google Gemini 1.5 Flash
+14. Google Gemini 1.5 Pro
+
 > **`NOTE`**: All of them have a free plan and work without a credit card. They don't have a lifetime usage limit, except for `Together AI`, but it provides $25 in credits, which will probably last a long time because they are cheap. All of them, except for `Kraken AI`, appear to have good rate limits. For `Kraken AI`, we get 500 credits per day, which equates to about 25 `Claude 3.5 Sonnet` messages per day.
 
 ## Contributions
@@ -118,4 +150,4 @@ This project is licensed under the MIT License.
 
 Happy Discording with *GEMM-X*!
 
-If you find this bot useful, don't forget to ⭐star the repository
+If you find this bot useful, don't forget to ⭐star the repository!
