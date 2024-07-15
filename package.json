@@ -17,5 +17,8 @@
     "youtube-transcript": "*",
     "node-os-utils": "*",
     "ws": "*"
+  },
+  "scripts": {
+    "start": "node index.js"
   }
 }
