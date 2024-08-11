@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 dotenv.config();
-import fetch from 'node-fetch';
 import {
   Client,
   GatewayIntentBits,
@@ -36,7 +35,7 @@ import { fileURLToPath } from 'url';
 import pdf from 'pdf-parse';
 import sharp from 'sharp';
 import url from 'url';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 import { YoutubeTranscript } from 'youtube-transcript';
 import axios from 'axios';
 import osu from 'node-os-utils';
@@ -262,7 +261,6 @@ client.once('ready', async () => {
 client.on('messageCreate', async (message) => {
   try {
     if (message.author.id === client.user.id) return;
-
     const isDM = message.channel.type === ChannelType.DM;
     const mentionPattern = new RegExp(`^<@!?${client.user.id}>(?:\\s+)?(generate|imagine)`, 'i');
     const startsWithPattern = /^generate|^imagine/i;
@@ -286,6 +284,7 @@ client.on('messageCreate', async (message) => {
           return message.reply({ embeds: [embed] });
         }
       }
+      console.log(`Received message: ${message.content} from ${message.author.id}(${message.author.username})`);
       if (command) {
         const prompt = message.content.slice(command.index + command[0].length).trim();
         if (prompt) {
@@ -1354,7 +1353,7 @@ async function changeImageModel(interaction) {
   try {
     // Define model names in an array
     const models = [
-      'SD-XL', 'SD-3', 'Playground', 'Anime', 'Anime-Alt', 'Stable-Cascade', 'DallE-XL', 'PixArt-Sigma', 'Mobius', 'Kolors'/*, 'DallE-3'*/
+      'SD-XL', 'Playground', 'Anime', 'FLUX.1 [dev]', 'FLUX.1 [schnell]', 'DallE-XL', 'PixArt-Sigma', 'Kolors'/*, 'DallE-3'*/
       ];
     
     const selectedModel = userPreferredImageModel[interaction.user.id] || defaultImgModel;
@@ -1400,8 +1399,8 @@ async function changeTextModel(interaction) {
   try {
     // Define model names in an array
     const models = [
-      'Cohere Command R Plus (Web)', 'Groq Llama 3 70B', 'Groq Llama 3 8B', 'Groq Gemma 2 9B',
-      'Together Qwen 2 72B', 'Together Llama 3 70B', 'Together DBRX', 'OpenRouter Phi-3 Medium 128K', 'OpenRouter Gemma 2 9B', 'OpenRouter Llama 3 8B', 'KrakenAI Gemini 1.5 Flash', 'KrakenAI Claude 3.5 Sonnet', 'Google Gemini 1.5 Flash', 'Google Gemini 1.5 Pro'
+      'Cohere Command R Plus (Web)', 'Groq Llama 3.1 70B', 'Groq Llama 3.1 8B', 'Groq Gemma 2 9B',
+      'Together Qwen 2 72B', 'Together Llama 3.1 405B', 'OpenRouter Phi-3 Medium 128K', 'KrakenAI Claude 3.5 Sonnet', 'Google Gemini 1.5 Flash', 'Google Gemini 1.5 Pro'
     ];
 
     const selectedModel = userPreferredTextModel[interaction.user.id] || defaultTextModel;
@@ -1529,16 +1528,15 @@ const speechMusicModelFunctions = {
 
 const imageModelFunctions = {
   'SD-XL': generateImage,
-  'SD-3': generateImage,
   'Kolors': generateImage,
   'Playground': generateWithPlayground,
   'Anime': generateImage,
-  'Anime-Alt': generateImage,
-  'Stable-Cascade': generateImage,
   'DallE-XL': generateImage,
   'DallE-3': generateWithDalle3,
   'PixArt-Sigma': generateImage,
-  'Mobius': generateImage
+  'FLUX.1 [dev]': generateImage,
+  'FLUX.1 [schnell]': generateImage,
+  'AuraFlow 0.2': generateImage
 };
 
 async function handleImageSelectModel(interaction, model) {
@@ -1637,7 +1635,7 @@ async function enhancePrompt(prompt) {
         }, 15000);
 
         const payload = {
-          model: "llama3-70b-8192",
+          model: "llama-3.1-70b-versatile",
           stream: false,
           messages: [
             {
@@ -2729,6 +2727,11 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
   const userId = originalMessage.author.id;
   let PROVIDER;
   let MODEL;
+  
+  const models = [
+      'Cohere Command R Plus (Web)', 'Groq Llama 3.1 70B', 'Groq Llama 3.1 8B', 'Groq Gemma 2 9B',
+      'Together Qwen 2 72B', 'Together Llama 3.1 405B', 'OpenRouter Phi-3 Medium 128K', 'KrakenAI Claude 3.5 Sonnet', 'Google Gemini 1.5 Flash', 'Google Gemini 1.5 Pro'
+    ];
 
   // Determine the provider and model based on the selected model
   switch (selectedModel) {
@@ -2736,13 +2739,13 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
       PROVIDER = 'COHERE';
       MODEL = 'Cohere Command R Plus (Web)';
       break;
-    case "Groq Llama 3 70B":
+    case "Groq Llama 3.1 70B":
       PROVIDER = 'GROQ';
-      MODEL = 'llama3-70b-8192';
+      MODEL = 'llama-3.1-70b-versatile';
       break;
-    case "Groq Llama 3 8B":
+    case "Groq Llama 3.1 8B":
       PROVIDER = 'GROQ';
-      MODEL = 'llama3-8b-8192';
+      MODEL = 'llama-3.1-8b-instant';
       break;
     case "Groq Gemma 2 9B":
       PROVIDER = 'GROQ';
@@ -2752,29 +2755,13 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
       PROVIDER = 'TOGETHER';
       MODEL = 'Qwen/Qwen2-72B-Instruct';
       break;
-    case "Together Llama 3 70B":
+    case "Together Llama 3.1 405B":
       PROVIDER = 'TOGETHER';
-      MODEL = 'meta-llama/Llama-3-70b-chat-hf';
-      break;
-    case "Together DBRX":
-      PROVIDER = 'TOGETHER';
-      MODEL = 'databricks/dbrx-instruct';
+      MODEL = 'meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo';
       break;
     case "OpenRouter Phi-3 Medium 128K":
       PROVIDER = 'OPENROUTER';
       MODEL = 'microsoft/phi-3-medium-128k-instruct:free';
-      break;
-    case "OpenRouter Gemma 2 9B":
-      PROVIDER = 'OPENROUTER';
-      MODEL = 'google/gemma-2-9b-it:free';
-      break;
-    case "OpenRouter Llama 3 8B":
-      PROVIDER = 'OPENROUTER';
-      MODEL = 'meta-llama/llama-3-8b-instruct:free';
-      break;
-    case "KrakenAI Gemini 1.5 Flash":
-      PROVIDER = 'KRAKENAI';
-      MODEL = 'gemini-1.5-flash';
       break;
     case "KrakenAI Claude 3.5 Sonnet":
       PROVIDER = 'KRAKENAI';
@@ -2786,7 +2773,7 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
       break;
     case "Google Gemini 1.5 Pro":
       PROVIDER = 'GOOGLE';
-      MODEL = 'gemini-1.5-pro';
+      MODEL = 'gemini-1.5-pro-exp-0801';
       break;
     default:
       PROVIDER = 'COHERE';
