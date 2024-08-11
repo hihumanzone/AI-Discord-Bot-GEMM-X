@@ -261,6 +261,10 @@ client.once('ready', async () => {
 client.on('messageCreate', async (message) => {
   try {
     if (message.author.id === client.user.id) return;
+    const blockedUsers = JSON.parse(fs.readFileSync('blockedUsers.json', 'utf-8'));
+    if (blockedUsers.includes(message.author.id)) {
+        return;
+    }
     const isDM = message.channel.type === ChannelType.DM;
     const mentionPattern = new RegExp(`^<@!?${client.user.id}>(?:\\s+)?(generate|imagine)`, 'i');
     const startsWithPattern = /^generate|^imagine/i;
@@ -316,6 +320,10 @@ client.on('messageCreate', async (message) => {
 
 client.on('interactionCreate', async (interaction) => {
   try {
+    const blockedUsers = JSON.parse(fs.readFileSync('blockedUsers.json', 'utf-8'));
+    if (blockedUsers.includes(interaction.user.id)) {
+      return;
+    }
     if (interaction.isCommand()) {
       await handleCommandInteraction(interaction);
     } else if (interaction.isButton()) {
@@ -983,7 +991,7 @@ async function handleSpeechCommand(interaction) {
       }
     }
     const embed = new EmbedBuilder()
-      .setColor(hexColour)
+      .setColor(0x00FFFF)
       .setTitle('Generating Speech')
       .setDescription(`Generating your speech, please wait... 💽`);
     await interaction.reply({ embeds: [embed], ephemeral: true });
@@ -1034,7 +1042,7 @@ async function handleMusicCommand(interaction) {
       }
     }
     const embed = new EmbedBuilder()
-      .setColor(hexColour)
+      .setColor(0x00FFFF)
       .setTitle('Generating Music')
       .setDescription(`Generating your music, please wait... 🎧`);
     await interaction.reply({ embeds: [embed], ephemeral: true });
