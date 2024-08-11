@@ -934,6 +934,23 @@ const appendSiteContentToText = async (text) => {
 
 async function handleImagineCommand(interaction) {
   try {
+    if (!workInDMs && interaction.channel.type === ChannelType.DM) {
+      const embed = new EmbedBuilder()
+        .setColor(hexColour)
+        .setTitle('DMs Disabled')
+        .setDescription('DM interactions are disabled for this bot.');
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+    if (interaction.guild) {
+      initializeBlacklistForGuild(interaction.guild.id);
+      if (blacklistedUsers[interaction.guild.id].includes(interaction.user.id)) {
+        const embed = new EmbedBuilder()
+          .setColor(hexColour)
+          .setTitle('Blacklisted')
+          .setDescription('You are blacklisted and cannot use this interaction.');
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+    }
     const prompt = interaction.options.getString('prompt');
     const model = interaction.options.getString('model');
     const resolution = interaction.options.getString('resolution');
@@ -947,12 +964,29 @@ async function handleImagineCommand(interaction) {
 }
 
 async function handleSpeechCommand(interaction) {
-  const embed = new EmbedBuilder()
-    .setColor(0x00FFFF)
-    .setTitle('Generating Speech')
-    .setDescription(`Generating your speech, please wait... 💽`);
-  await interaction.reply({ embeds: [embed], ephemeral: true });
   try {
+    if (!workInDMs && interaction.channel.type === ChannelType.DM) {
+      const embed = new EmbedBuilder()
+        .setColor(hexColour)
+        .setTitle('DMs Disabled')
+        .setDescription('DM interactions are disabled for this bot.');
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+    if (interaction.guild) {
+      initializeBlacklistForGuild(interaction.guild.id);
+      if (blacklistedUsers[interaction.guild.id].includes(interaction.user.id)) {
+        const embed = new EmbedBuilder()
+          .setColor(hexColour)
+          .setTitle('Blacklisted')
+          .setDescription('You are blacklisted and cannot use this interaction.');
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+    }
+    const embed = new EmbedBuilder()
+      .setColor(hexColour)
+      .setTitle('Generating Speech')
+      .setDescription(`Generating your speech, please wait... 💽`);
+    await interaction.reply({ embeds: [embed], ephemeral: true });
     const userId = interaction.user.id;
     const text = interaction.options.getString('prompt');
     const language = interaction.options.getString('language');
@@ -981,12 +1015,29 @@ async function handleSpeechCommand(interaction) {
 }
 
 async function handleMusicCommand(interaction) {
-  const embed = new EmbedBuilder()
-    .setColor(0x00FFFF)
-    .setTitle('Generating Music')
-    .setDescription(`Generating your music, please wait... 🎧`);
-  await interaction.reply({ embeds: [embed], ephemeral: true });
   try {
+    if (!workInDMs && interaction.channel.type === ChannelType.DM) {
+      const embed = new EmbedBuilder()
+        .setColor(hexColour)
+        .setTitle('DMs Disabled')
+        .setDescription('DM interactions are disabled for this bot.');
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+    if (interaction.guild) {
+      initializeBlacklistForGuild(interaction.guild.id);
+      if (blacklistedUsers[interaction.guild.id].includes(interaction.user.id)) {
+        const embed = new EmbedBuilder()
+          .setColor(hexColour)
+          .setTitle('Blacklisted')
+          .setDescription('You are blacklisted and cannot use this interaction.');
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+    }
+    const embed = new EmbedBuilder()
+      .setColor(hexColour)
+      .setTitle('Generating Music')
+      .setDescription(`Generating your music, please wait... 🎧`);
+    await interaction.reply({ embeds: [embed], ephemeral: true });
     const userId = interaction.user.id;
     const text = interaction.options.getString('prompt');
     const outputUrl = await generateMusicWithPrompt(text, userId);
