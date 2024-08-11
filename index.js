@@ -1450,7 +1450,7 @@ async function changeTextModel(interaction) {
   try {
     // Define model names in an array
     const models = [
-      'Cohere Command R Plus (Web)', 'Groq Llama 3.1 70B', 'Groq Llama 3.1 8B', 'Groq Gemma 2 9B',
+      'Cohere Command R Plus (Web)', 'Cohere Command R (Web)', 'Groq Llama 3.1 70B', 'Groq Llama 3.1 8B', 'Groq Gemma 2 9B',
       'Together Qwen 2 72B', 'Together Llama 3.1 405B', 'OpenRouter Phi-3 Medium 128K', 'KrakenAI Claude 3.5 Sonnet', 'Google Gemini 1.5 Flash', 'Google Gemini 1.5 Pro'
     ];
 
@@ -2780,7 +2780,7 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
   let MODEL;
   
   const models = [
-      'Cohere Command R Plus (Web)', 'Groq Llama 3.1 70B', 'Groq Llama 3.1 8B', 'Groq Gemma 2 9B',
+      'Cohere Command R Plus (Web)', 'Cohere Command R (Web)', 'Groq Llama 3.1 70B', 'Groq Llama 3.1 8B', 'Groq Gemma 2 9B',
       'Together Qwen 2 72B', 'Together Llama 3.1 405B', 'OpenRouter Phi-3 Medium 128K', 'KrakenAI Claude 3.5 Sonnet', 'Google Gemini 1.5 Flash', 'Google Gemini 1.5 Pro'
     ];
 
@@ -2788,7 +2788,11 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
   switch (selectedModel) {
     case "Cohere Command R Plus (Web)":
       PROVIDER = 'COHERE';
-      MODEL = 'Cohere Command R Plus (Web)';
+      MODEL = 'command-r-plus';
+      break;
+    case "Cohere Command R (Web)":
+      PROVIDER = 'COHERE';
+      MODEL = 'command-r';
       break;
     case "Groq Llama 3.1 70B":
       PROVIDER = 'GROQ';
@@ -2928,6 +2932,7 @@ async function handleModelResponse(initialBotMessage, systemInstruction, history
         const chatStream = await cohere.chatStream({
           chatHistory: messages,
           message: extractText(parts),
+          model: MODEL,
           connectors: [{ id: 'web-search' }],
         });
 
